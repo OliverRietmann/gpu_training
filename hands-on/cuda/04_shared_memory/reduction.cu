@@ -55,10 +55,10 @@ int main()
   CUDA_CHECK(cudaStreamCreate(&stream));
 
   // Host‑side random input
-  std::mt19937                     rng{std::random_device{}()};
+  std::mt19937 rng{std::random_device{}()};
   std::uniform_int_distribution<>  dist(-10, 10);
   std::vector<int> h_input(kNumElements);
-  for (auto& v : h_input) v = dist(rng);
+  for (int& v : h_input) v = dist(rng);
 
   const int hostResult = std::accumulate(h_input.begin(), h_input.end(), 0);
   std::cerr << "Host sum: " << hostResult << '\n';
@@ -71,21 +71,21 @@ int main()
 
   // ───►►► Part 3 of 8 – allocate device buffer for partial sums ◄◄◄─────────
   // TODO: compute numBlocks and allocate d_partial accordingly.
-  int  numBlocks  = /* TODO */;
+  int  numBlocks  = kNumElements / kBlockSize;
   int* d_partial  = nullptr;
   // TODO: cudaMallocAsync for d_partial
+  CUDA_CHECK(cudaMallocAsync(&d_partial, Bytes<int>(kBlockSize), stream));
 
   // ───►►► Part 4 of 8 – launch first reduction kernel ◄◄◄───────────────────
   // TODO: configure grid & block and launch blockReduceKernel
   // Example:
-  //   blockReduceKernel<<<numBlocks, kBlockSize, 0, stream>>>(d_input,
-  //                                                           d_partial,
-  //                                                           kNumElements);
-  // CUDA_CHECK(cudaGetLastError());
+  blockReduceKernel<<<numBlocks, kBlockSize, 0, stream>>>(d_input, d_partial, kBlockSize);
+  CUDA_CHECK(cudaGetLastError());
 
   // ───►►► Part 5 of 8 – launch second (final) kernel ◄◄◄────────────────────
   // TODO: launch finalReduceKernel with one block (kBlockSize threads)
-  // CUDA_CHECK(cudaGetLastError());
+  finalReduceKernel<<<numBlocks, kBlockSize, 0, stream>>>(d_partial, numBlocks);
+  CUDA_CHECK(cudaGetLastError());
 
   // ───►►► Part 6 of 8 – copy result back ◄◄◄────────────────────────────────
   int deviceResult = 0;
@@ -107,15 +107,34 @@ int main()
 // ---------------------------------------------------------------------------
 __global__ void blockReduceKernel(const int* __restrict__ d_input,
                                   int*  __restrict__ d_partial,
-                                  int           numElements)
+                                  int           kBlockSize)
 {
   // TODO: allocate shared memory (kBlockSize ints) via __shared__
+  __shared__ int sharedData[kBlockSize];
   // TODO: load element (or 0 if out‑of‑range) into shared memory
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < kBlockSize) {
+        sharedData[threadIdx.x] = d_input[idx];
+    } else {
+        sharedData[threadIdx.x] = 0; // Guard against out-of-range accesses
+    }
+    __syncthreads();
   // TODO: perform reduction within the block (shared‑memory or warp shuffles)
+  for (int stride = blockDim.x; stride > 0; stride /= 2) {
+    if (threadIdx.x < stride) {
+      sharedData[threadIdx.x] += sharedData[threadIdx.x + stride];
+    }
+  }
   // TODO: write block sum to d_partial[blockIdx.x]
+  if (threadIdx.x == 0) {
+    d_partial[blockIdx.x] = sharedData[0];
+  }
 }
 
 __global__ void finalReduceKernel(int* d_partial, int numPartials)
 {
   // TODO: final reduction of 'numPartials' values into d_partial[0]
+    for (int i = threadIdx.x + 1; i < numPartials; i += blockDim.x) {
+        d_partial[0] += d_partial[i];
+    }
 }

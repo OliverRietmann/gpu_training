@@ -51,7 +51,11 @@ __global__ void fillMatrixKernel(int* __restrict__ mat,
   // 1. Identify my (row, col) inside the 2‑D matrix
   const int col = blockIdx.x * blockDim.x + threadIdx.x;
   const int row = blockIdx.y * blockDim.y + threadIdx.y;
-
+  if (row < numRows && col < numCols) {
+    // 2. Write the value to global memory
+    int idx = row * numCols + col;
+    mat[idx] = idx;  // or mat[row * numCols + col] = idx;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -65,8 +69,8 @@ int main()
 
   // ───►►► Part 1 of 4 – set matrix dims ◄◄◄─────────────────────────────────
   // Choose any positive sizes (e.g. 4×4 or 19×67) so long as both ≥ 1.
-  const int numCols = /* TODO: set X dimension */;  // aka width
-  const int numRows = /* TODO: set Y dimension */;  // aka height
+  const int numCols = 19;  // aka width
+  const int numRows = 67;  // aka height
 
   // Host allocation
   const int elements = numCols * numRows;
