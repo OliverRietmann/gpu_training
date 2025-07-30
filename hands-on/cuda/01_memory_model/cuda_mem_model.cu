@@ -46,25 +46,25 @@ int main()
 
   // ───►►► Part 1 of 5 – allocate device memory ◄◄◄───────────────────────────
   // Hint: cudaMallocAsync(void **ptr, size_t size, cudaStream_t stream)
-  CUDA_CHECK(/* TODO: allocate d_a */);
-  CUDA_CHECK(/* TODO: allocate d_b */);
+  CUDA_CHECK(cudaMallocAsync(&d_a, bytes, stream));
+  CUDA_CHECK(cudaMallocAsync(&d_b, bytes, stream));
 
   // ───►►► Part 2 of 5 – host → device copy ◄◄◄──────────────────────────────
   // Hint: cudaMemcpyAsync(dst, src, bytes, cudaMemcpyHostToDevice, stream)
-  CUDA_CHECK(/* TODO: h_a → d_a */);
+  CUDA_CHECK(cudaMemcpyAsync(d_a, h_a.data(), bytes, cudaMemcpyHostToDevice, stream));
 
   // ───►►► Part 3 of 5 – device → device copy ◄◄◄────────────────────────────
-  CUDA_CHECK(/* TODO: d_a → d_b */);
+  CUDA_CHECK(cudaMemcpyAsync(d_b, d_a, bytes, cudaMemcpyDeviceToDevice, stream));
 
   // Clear host and copy back
   std::fill(h_a.begin(), h_a.end(), ValueT{0});
 
   // ───►►► Part 4 of 5 – device → host copy ◄◄◄──────────────────────────────
-  CUDA_CHECK(/* TODO: d_b → h_a */);
+  CUDA_CHECK(cudaMemcpyAsync(h_a.data(), d_b, bytes, cudaMemcpyDeviceToHost, stream));
 
   // ───►►► Part 5 of 5 – free device memory ◄◄◄──────────────────────────────
-  CUDA_CHECK(/* TODO: free d_a */);
-  CUDA_CHECK(/* TODO: free d_b */);
+  CUDA_CHECK(cudaFreeAsync(d_a, stream)/* TODO: free d_a */);
+  CUDA_CHECK(cudaFreeAsync(d_b, stream)/* TODO: free d_b */);
 
   // Wait for all asynchronous operations
   CUDA_CHECK(cudaStreamSynchronize(stream));

@@ -31,11 +31,15 @@ constexpr int kBlockSize      = 8;    // Threads per block
 // ---------------------------------------------------------------------------
 // Kernel – each thread sets d_data[idx] = idx + 42
 // ---------------------------------------------------------------------------
-__global__ void initArrayKernel(/* TODO: add parameters */)
+__global__ void initArrayKernel(int *d_data, int kNumElements)
 {
   // TODO: compute global thread index
   // TODO: guard against out-of-range accesses
   // TODO: write the value to global memory
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < kNumElements) {
+    d_data[idx] = idx + 42; // Assuming d_data is a pointer to int
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -58,21 +62,26 @@ int main()
   // ───►►► Part 1 of 5 – allocate device memory ◄◄◄──────────────────────────
   // API reference: cudaMallocAsync(void** ptr, size_t size, cudaStream_t s)
   // TODO: allocate d_a
+  CUDA_CHECK(cudaMallocAsync(&d_a, bytes, stream));
 
   // ───►►► Part 2 of 5 – configure & launch kernel ◄◄◄──────────────────────
   const int numBlocks = kNumElements / kBlockSize;
   // API reference: <<<gridDim, blockDim, sharedMemBytes, cudaStream_t>>>
   // TODO: launch initArrayKernel
+  initArrayKernel<<<numBlocks, kBlockSize, 0, stream>>>(d_a, kNumElements);
 
   // Optional: check launch errors (cudaGetLastError)
+  CUDA_CHECK(cudaGetLastError());
 
   // ───►►► Part 3 of 5 – copy device → host ◄◄◄─────────────────────────────
   // API reference: cudaMemcpyAsync(dst, src, bytes, cudaMemcpyKind, stream)
   // TODO: copy from d_a to h_a
+  CUDA_CHECK(cudaMemcpyAsync(h_a.data(), d_a, bytes, cudaMemcpyDeviceToHost, stream));
 
   // ───►►► Part 4 of 5 – free device memory ◄◄◄─────────────────────────────
   // API reference: cudaFreeAsync(void* ptr, cudaStream_t s)
   // TODO: free d_a
+  CUDA_CHECK(cudaFreeAsync(d_a, stream));
 
   // Wait for completion
   CUDA_CHECK(cudaStreamSynchronize(stream));
